@@ -17,7 +17,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -31,34 +31,12 @@ jobs:
       - name: Setup Android
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK
-        run: |
-          sdkmanager "platform-tools"
-          sdkmanager "platforms;android-35"
-          sdkmanager "build-tools;35.0.0"
-
-      - name: Create package.json
-        run: |
-          cat > package.json <<'EOF'
-          {
-            "name": "ruscha-gaplashamiz",
-            "version": "1.0.0",
-            "private": true,
-            "scripts": {
-              "build": "echo Web app ready"
-            },
-            "dependencies": {
-              "@capacitor/core": "7.4.3",
-              "@capacitor/android": "7.4.3",
-              "@capacitor/cli": "7.4.3"
-            }
-          }
-          EOF
-
       - name: Install Capacitor
-        run: npm install
+        run: |
+          npm init -y
+          npm install @capacitor/core@7.4.3 @capacitor/android@7.4.3 @capacitor/cli@7.4.3
 
-      - name: Create web directory
+      - name: Prepare web files
         run: |
           mkdir -p www
           cp index.html www/
@@ -71,85 +49,41 @@ jobs:
 
       - name: Create Capacitor config
         run: |
-          cat > capacitor.config.ts <<'EOF'
-          import type { CapacitorConfig } from '@capacitor/cli';
-
-          const config: CapacitorConfig = {
-            appId: 'com.ruscha.gaplashamiz',
-            appName: 'Ruscha-gaplashamiz',
-            webDir: 'www',
-            bundledWebRuntime: false
-          };
-
-          export default config;
+          cat > capacitor.config.json <<'EOF'
+          {
+            "appId": "com.ruscha.gaplashamiz",
+            "appName": "Ruscha-gaplashamiz",
+            "webDir": "www"
+          }
           EOF
 
       - name: Add Android
         run: npx cap add android
 
-      - name: Copy web files
+      - name: Copy web files to Android
         run: npx cap copy android
 
-      - name: Update Android configuration
-        run: |
-          sed -i 's/minSdk = [0-9]*/minSdk = 23/' android/variables.gradle || true
-          sed -i 's/targetSdk = [0-9]*/targetSdk = 35/' android/variables.gradle || true
-          sed -i 's/compileSdk = [0-9]*/compileSdk = 35/' android/variables.gradle || true
-
-      - name: Build unsigned release APK
+      - name: Build APK
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleDebug
 
-      - name: Create signing key
+      - name: Check APK
         run: |
-          keytool -genkeypair \
-            -v \
-            -keystore release.keystore \
-            -alias ruscha-gaplashamiz \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass android \
-            -keypass android \
-            -dname "CN=Ruscha Gaplashamiz, OU=App, O=OMAD89, L=Termiz, ST=Surxondaryo, C=UZ"
-
-      - name: Sign APK
-        run: |
-          APK="android/app/build/outputs/apk/release/app-release-unsigned.apk"
-
-          $ANDROID_HOME/build-tools/35.0.0/zipalign \
-            -f 4 \
-            "$APK" \
-            aligned.apk
-
-          $ANDROID_HOME/build-tools/35.0.0/apksigner sign \
-            --ks release.keystore \
-            --ks-pass pass:android \
-            --key-pass pass:android \
-            --out Ruscha-gaplashamiz.apk \
-            aligned.apk
-
-      - name: Verify APK
-        run: |
-          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose Ruscha-gaplashamiz.apk
-          ls -lh Ruscha-gaplashamiz.apk
+          ls -lh android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Ruscha-gaplashamiz-APK
-          path: Ruscha-gaplashamiz.apk
-          retention-days: 30
+          path: android/app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Create GitHub Release
+      - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: Ruscha-gaplashamiz v1.0.${{ github.run_number }}
+          tag_name: android-${{ github.run_number }}
+          name: Ruscha-gaplashamiz Android ${{ github.run_number }}
           body: |
-            Ruscha-gaplashamiz
-            Signed Android APK
-            Version 1.0.${{ github.run_number }}
-          files: Ruscha-gaplashamiz.apk
+            Ruscha-gaplashamiz Android APK
+          files: android/app/build/outputs/apk/debug/app-debug.apk

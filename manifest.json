@@ -1,0 +1,16 @@
+{
+  "name": "Gaplashamiz — Rus tilini noldan o'rganish",
+  "short_name": "Gaplashamiz",
+  "description": "Rus tilini noldan o'rganish: alifbo, qoidalar, mashqlar, dialoglar, matnlar va lug'at",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#12181F",
+  "theme_color": "#12181F",
+  "orientation": "portrait",
+  "lang": "uz",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

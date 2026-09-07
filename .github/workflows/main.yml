@@ -1,4 +1,4 @@
-name: Build Ruscha Gaplashamiz APK
+name: Build Signed APK
 
 on:
   workflow_dispatch:
@@ -14,228 +14,142 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup JDK 17
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
+      - name: Setup Android
         uses: android-actions/setup-android@v3
 
       - name: Install Android SDK
         run: |
-          sdkmanager "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
+          sdkmanager "platform-tools"
+          sdkmanager "platforms;android-35"
+          sdkmanager "build-tools;35.0.0"
 
-      - name: Create Android project
+      - name: Create package.json
         run: |
-          mkdir -p app/src/main/java/com/ruscha/gaplashamiz
-          mkdir -p app/src/main/assets
-          mkdir -p app/src/main/res/values
-
-      - name: Copy website files
-        run: |
-          cp index.html app/src/main/assets/
-          cp app.js app/src/main/assets/
-          cp lessons.js app/src/main/assets/
-          cp manifest.json app/src/main/assets/
-          cp sw.js app/src/main/assets/
-          cp icon-192.png app/src/main/assets/
-          cp icon-512.png app/src/main/assets/
-
-      - name: Create settings.gradle
-        run: |
-          cat > settings.gradle <<'EOF'
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-
-          rootProject.name = "RuschaGaplashamiz"
-          include(":app")
-          EOF
-
-      - name: Create root build.gradle
-        run: |
-          cat > build.gradle <<'EOF'
-          plugins {
-              id 'com.android.application' version '8.7.3' apply false
+          cat > package.json <<'EOF'
+          {
+            "name": "ruscha-gaplashamiz",
+            "version": "1.0.0",
+            "private": true,
+            "scripts": {
+              "build": "echo Web app ready"
+            },
+            "dependencies": {
+              "@capacitor/core": "7.4.3",
+              "@capacitor/android": "7.4.3",
+              "@capacitor/cli": "7.4.3"
+            }
           }
           EOF
 
-      - name: Create app build.gradle
+      - name: Install Capacitor
+        run: npm install
+
+      - name: Create web directory
         run: |
-          cat > app/build.gradle <<'EOF'
-          plugins {
-              id 'com.android.application'
-          }
+          mkdir -p www
+          cp index.html www/
+          cp app.js www/
+          cp lessons.js www/
+          cp manifest.json www/
+          cp sw.js www/
+          cp icon-192.png www/
+          cp icon-512.png www/
 
-          android {
-              namespace 'com.ruscha.gaplashamiz'
-              compileSdk 35
+      - name: Create Capacitor config
+        run: |
+          cat > capacitor.config.ts <<'EOF'
+          import type { CapacitorConfig } from '@capacitor/cli';
 
-              defaultConfig {
-                  applicationId 'com.ruscha.gaplashamiz'
-                  minSdk 23
-                  targetSdk 29
-                  versionCode 2
-                  versionName '1.0.1'
-              }
+          const config: CapacitorConfig = {
+            appId: 'com.ruscha.gaplashamiz',
+            appName: 'Ruscha-gaplashamiz',
+            webDir: 'www',
+            bundledWebRuntime: false
+          };
 
-              buildTypes {
-                  debug {
-                      debuggable true
-                  }
-              }
-          }
+          export default config;
           EOF
 
-      - name: Create styles
+      - name: Add Android
+        run: npx cap add android
+
+      - name: Copy web files
+        run: npx cap copy android
+
+      - name: Update Android configuration
         run: |
-          cat > app/src/main/res/values/styles.xml <<'EOF'
-          <resources>
-              <style name="AppTheme"
-                     parent="android:style/Theme.Material.Light.NoActionBar">
-                  <item name="android:fontFamily">sans</item>
-                  <item name="android:windowActionModeOverlay">true</item>
-                  <item name="android:colorAccent">#1976D2</item>
-                  <item name="android:navigationBarColor">#FFFFFF</item>
-                  <item name="android:statusBarColor">#FFFFFF</item>
-                  <item name="android:windowLightStatusBar">true</item>
-              </style>
-          </resources>
-          EOF
+          sed -i 's/minSdk = [0-9]*/minSdk = 23/' android/variables.gradle || true
+          sed -i 's/targetSdk = [0-9]*/targetSdk = 35/' android/variables.gradle || true
+          sed -i 's/compileSdk = [0-9]*/compileSdk = 35/' android/variables.gradle || true
 
-      - name: Create AndroidManifest.xml
-        run: |
-          cat > app/src/main/AndroidManifest.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-
-          <manifest
-              xmlns:android="http://schemas.android.com/apk/res/android">
-
-              <uses-permission android:name="android.permission.INTERNET" />
-
-              <application
-                  android:allowBackup="true"
-                  android:hardwareAccelerated="true"
-                  android:label="Ruscha-gaplashamiz"
-                  android:supportsRtl="true"
-                  android:theme="@style/AppTheme"
-                  android:usesCleartextTraffic="true">
-
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true"
-                      android:screenOrientation="portrait">
-
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-
-                  </activity>
-
-              </application>
-
-          </manifest>
-          EOF
-
-      - name: Create MainActivity
-        run: |
-          cat > app/src/main/java/com/ruscha/gaplashamiz/MainActivity.java <<'EOF'
-          package com.ruscha.gaplashamiz;
-
-          import android.app.Activity;
-          import android.os.Bundle;
-          import android.webkit.WebChromeClient;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-
-          public class MainActivity extends Activity {
-
-              private WebView webView;
-
-              @Override
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-
-                  webView = new WebView(this);
-                  setContentView(webView);
-
-                  WebSettings settings = webView.getSettings();
-
-                  settings.setJavaScriptEnabled(true);
-                  settings.setDomStorageEnabled(true);
-                  settings.setDatabaseEnabled(true);
-                  settings.setAllowFileAccess(true);
-                  settings.setAllowContentAccess(true);
-                  settings.setJavaScriptCanOpenWindowsAutomatically(true);
-                  settings.setMediaPlaybackRequiresUserGesture(false);
-
-                  webView.setWebViewClient(new WebViewClient());
-                  webView.setWebChromeClient(new WebChromeClient());
-
-                  webView.loadUrl("file:///android_asset/index.html");
-              }
-
-              @Override
-              public void onBackPressed() {
-                  if (webView.canGoBack()) {
-                      webView.goBack();
-                  } else {
-                      super.onBackPressed();
-                  }
-              }
-          }
-          EOF
-
-      - name: Generate Gradle Wrapper
-        run: |
-          gradle wrapper --gradle-version 8.9
-
-      - name: Build Debug APK
+      - name: Build unsigned release APK
+        working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew clean assembleDebug --stacktrace
+          ./gradlew assembleRelease
 
-      - name: Check APK
+      - name: Create signing key
         run: |
-          ls -lh app/build/outputs/apk/debug/
-          file app/build/outputs/apk/debug/app-debug.apk
+          keytool -genkeypair \
+            -v \
+            -keystore release.keystore \
+            -alias ruscha-gaplashamiz \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass android \
+            -keypass android \
+            -dname "CN=Ruscha Gaplashamiz, OU=App, O=OMAD89, L=Termiz, ST=Surxondaryo, C=UZ"
+
+      - name: Sign APK
+        run: |
+          APK="android/app/build/outputs/apk/release/app-release-unsigned.apk"
+
+          $ANDROID_HOME/build-tools/35.0.0/zipalign \
+            -f 4 \
+            "$APK" \
+            aligned.apk
+
+          $ANDROID_HOME/build-tools/35.0.0/apksigner sign \
+            --ks release.keystore \
+            --ks-pass pass:android \
+            --key-pass pass:android \
+            --out Ruscha-gaplashamiz.apk \
+            aligned.apk
+
+      - name: Verify APK
+        run: |
+          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose Ruscha-gaplashamiz.apk
+          ls -lh Ruscha-gaplashamiz.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Ruscha-gaplashamiz-Android10
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Ruscha-gaplashamiz-APK
+          path: Ruscha-gaplashamiz.apk
           retention-days: 30
 
-      - name: Create Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: android-v1.0.${{ github.run_number }}
-          name: Ruscha-gaplashamiz Android v1.0.${{ github.run_number }}
+          tag_name: v1.0.${{ github.run_number }}
+          name: Ruscha-gaplashamiz v1.0.${{ github.run_number }}
           body: |
             Ruscha-gaplashamiz
-            Android 10 compatible APK
+            Signed Android APK
             Version 1.0.${{ github.run_number }}
-          files: app/build/outputs/apk/debug
+          files: Ruscha-gaplashamiz.apk

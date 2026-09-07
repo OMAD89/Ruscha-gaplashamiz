@@ -1,4 +1,4 @@
-name: Build Signed APK
+name: Build Redmi 8 APK
 
 on:
   workflow_dispatch:
@@ -14,31 +14,39 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+      # 1. GitHub repository
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 2. Node.js
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
+      # 3. Java 21
       - name: Setup Java
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
 
+      # 4. Android SDK
       - name: Setup Android
         uses: android-actions/setup-android@v3
 
+      # 5. Capacitor
       - name: Install Capacitor
         run: |
           npm init -y
           npm install @capacitor/core@7.4.3 @capacitor/android@7.4.3 @capacitor/cli@7.4.3
 
+      # 6. Web application files
       - name: Prepare web files
         run: |
           mkdir -p www
+
           cp index.html www/
           cp app.js www/
           cp lessons.js www/
@@ -47,43 +55,76 @@ jobs:
           cp icon-192.png www/
           cp icon-512.png www/
 
+      # 7. Capacitor configuration
       - name: Create Capacitor config
         run: |
           cat > capacitor.config.json <<'EOF'
           {
-            "appId": "com.ruscha.gaplashamiz",
+            "appId": "com.ruscha.gaplashamiz.redmi",
             "appName": "Ruscha-gaplashamiz",
             "webDir": "www"
           }
           EOF
 
+      # 8. Create Android project
       - name: Add Android
-        run: npx cap add android
+        run: |
+          npx cap add android
 
-      - name: Copy web files to Android
-        run: npx cap copy android
+      # 9. Copy web files
+      - name: Copy web files
+        run: |
+          npx cap copy android
 
+      # 10. Configure Android compatibility
+      - name: Configure Android
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("android/app/build.gradle")
+          text = p.read_text()
+
+          text = text.replace(
+              "minSdkVersion project.hasProperty('minSdkVersion') ? rootProject.ext.minSdkVersion : 23",
+              "minSdkVersion 23"
+          )
+
+          text = text.replace(
+              "targetSdkVersion project.hasProperty('targetSdkVersion') ? rootProject.ext.targetSdkVersion : 35",
+              "targetSdkVersion 35"
+          )
+
+          p.write_text(text)
+          PY
+
+      # 11. Build APK
       - name: Build APK
         working-directory: android
         run: |
           chmod +x gradlew
+          ./gradlew clean
           ./gradlew assembleDebug
 
+      # 12. Check APK
       - name: Check APK
         run: |
           ls -lh android/app/build/outputs/apk/debug/app-debug.apk
 
+      # 13. Upload APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Ruscha-gaplashamiz-APK
+          name: Ruscha-gaplashamiz-Redmi8-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
 
+      # 14. GitHub Release
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: android-${{ github.run_number }}
-          name: Ruscha-gaplashamiz Android ${{ github.run_number }}
+          tag_name: redmi8-${{ github.run_number }}
+          name: Ruscha-gaplashamiz Redmi 8 ${{ github.run_number }}
           body: |
             Ruscha-gaplashamiz Android APK
+            Optimized for Android 10 / Redmi 8.
           files: android/app/build/outputs/apk/debug/app-debug.apk
